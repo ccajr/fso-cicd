@@ -30,6 +30,8 @@ jobs:
         run: npm run test --prefix client
       - name: Run npm test (server)
         run: npm run test --prefix server
+        env:
+          TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
       - name: Run npm build
         run: npm run build
       - name: Install Playwright Browsers
