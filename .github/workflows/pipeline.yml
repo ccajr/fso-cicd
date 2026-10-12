@@ -32,12 +32,16 @@ jobs:
         run: npm run test --prefix server
         env:
           TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
+          SECRET: ${{ secrets.SECRET }}
       - name: Run npm build
         run: npm run build
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - name: Run Playwright tests
         run: npm run test:e2e
+        env:
+          TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
+          SECRET: ${{ secrets.SECRET }}
   deploy:
     needs: [build_and_test]
     runs-on: ubuntu-latest
