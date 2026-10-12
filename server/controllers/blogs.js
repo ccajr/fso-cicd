@@ -1,0 +1,99 @@
+const Blog = require('../models/blog')
+const Comment = require('../models/comment')
+const blogsRouter = require('express').Router()
+const { userExtractor } = require('../utils/middleware')
+
+blogsRouter.get('/', (request, response) => {
+  Blog.find({})
+    .populate('user', { username: 1, name: 1, id: 1 })
+    .populate('comments', { content: 1, id: 1 })
+    .then((blogs) => {
+      response.json(blogs)
+    })
+})
+
+blogsRouter.post('/', userExtractor, async (request, response) => {
+  const user = request.user
+  const blog = new Blog(request.body)
+
+  blog.likes = blog.likes | 0
+  blog.user = user._id
+
+  if (!blog.title || !blog.url) {
+    return response.status(400).send({ error: 'title or url missing' })
+  }
+
+  user.blogs = user.blogs.concat(blog._id)
+  await user.save()
+
+  const savedBlog = await blog.save()
+  await savedBlog.populate('user', { username: 1, name: 1, id: 1 })
+
+  response.status(201).json(savedBlog)
+})
+
+blogsRouter.delete('/:id', userExtractor, async (request, response) => {
+  const user = request.user
+  const blog = await Blog.findById(request.params.id)
+
+  if (!blog) {
+    return response.status(204).end()
+  }
+
+  if (user.id.toString() !== blog.user.toString()) {
+    return response.status(403).json({ error: 'user not authorized' })
+  }
+
+  user.blogs = user.blogs.filter((b) => b.id.toString() !== blog.id.toString())
+
+  await blog.deleteOne()
+  await Comment.deleteMany({ blog: { $eq: blog.id } })
+  response.status(204).end()
+})
+
+blogsRouter.put('/:id', userExtractor, async (request, response) => {
+  const { title, author, url, likes } = request.body
+
+  const blog = await Blog.findById(request.params.id)
+
+  if (!blog) {
+    return response.status(404).end()
+  }
+
+  blog.title = title
+  blog.author = author
+  blog.url = url
+  blog.likes = likes
+
+  const updatedBlog = await blog.save()
+  await updatedBlog.populate('user', { username: 1, name: 1, id: 1 })
+  await updatedBlog.populate('comments', { content: 1, id: 1 })
+
+  response.json(updatedBlog)
+})
+
+blogsRouter.post('/:id/comments', userExtractor, async (request, response) => {
+  const comment = new Comment(request.body)
+
+  if (!comment.content) {
+    return response.status(400).send({ error: 'content missing' })
+  }
+
+  const blog = await Blog.findById(request.params.id)
+
+  if (!blog) {
+    return response.status(404).send({ error: 'blog does not exist' })
+  }
+
+  comment.blog = blog.id
+  const savedComment = await comment.save()
+
+  blog.comments = blog.comments.concat(savedComment._id)
+  const updatedBlog = await blog.save()
+  await updatedBlog.populate('user', { username: 1, name: 1, id: 1 })
+  await updatedBlog.populate('comments', { content: 1, id: 1 })
+
+  response.status(201).json(updatedBlog)
+})
+
+module.exports = blogsRouter

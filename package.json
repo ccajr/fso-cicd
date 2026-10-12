@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "build:ui": "rm -rf dist && cd client && npm run build && cp -r dist ../",
+    "start": "cross-env NODE_ENV=production npm start --prefix server",
+    "test:e2e": "playwright test --project=chromium"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4"
+  }
+}
