@@ -21,6 +21,7 @@ let userId
 
 describe('when there are initially some blogs saved', () => {
   before(async () => {
+    console.log('!!!!DEBUG ', process.env.NODE_ENV, process.env.TEST_MONGODB_URI?.length || 0)
     await User.deleteMany({})
     let response = await api.post('/api/users').send(testUser)
     userId = response.body.id
