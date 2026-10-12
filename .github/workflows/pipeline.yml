@@ -1,0 +1,118 @@
+name: Deployment pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install dependencies
+        run: npm install
+      - name: Install dependencies (client)
+        run: npm install --prefix client
+      - name: Install dependencies (server)
+        run: npm install --prefix server
+      - name: Check style (client)
+        run: npm run lint --prefix client
+      - name: Check style (server)
+        run: npm run lint --prefix server
+      - name: Run npm test (client)
+        run: npm run test --prefix client
+      - name: Run npm test (server)
+        run: npm run test --prefix server
+      - name: Run npm build
+        run: npm run build
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Run Playwright tests
+        run: npm run test:e2e
+  deploy:
+    needs: [build_and_test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deployment
+        if: ${{ github.event_name == 'push' && ! contains(join(toJson(github.event.commits.*.message)), '#skip') }}
+        run: curl ${{ secrets.RENDER_DEPLOY_HOOK }}
+  notify_success:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord success notification
+        if: ${{ github.event_name == 'push' && ! contains(join(toJson(github.event.commits.*.message)), '#skip') }}
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          content: "✅ Deployment Successful! A new version deployed to production"
+          title: "Deployment Details"
+          description: |
+            **Commit:** ${{ github.event.head_commit.id }}
+            **Message:** ${{ github.event.head_commit.message }}
+            **Author:** ${{ github.actor }}
+          color: 0x70a750
+          url: ${{ github.event.head_commit.url }}
+  tag_release:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && ! contains(join(toJson(github.event.commits.*.message)), '#skip') }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
+  notify_failure:
+    needs: [deploy]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord error notification (push)
+        if: ${{ github.event_name == 'push' }}
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          content: "❌ Build Failed! The pipeline encountered an error"
+          title: "Failure Details"
+          description: |
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha}}
+            **Message:** ${{ github.event.head_commit.message }}
+            **Author:** ${{ github.actor }}
+            **Workflow:** ${{ github.workflow }}
+            **Job:** ${{ github.job }}
+
+            [View Commit](${{ github.event.head_commit.url }})
+            [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          color: 0xf44336
+      - name: Send Discord error notification (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          noprefix: true
+          content: "❌ Build Failed! The pipeline encountered an error"
+          title: "Failure Details"
+          description: |
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.head_ref }}
+            **Commit:** ${{ github.event.after}}
+            **Author:** ${{ github.actor }}
+            **Workflow:** ${{ github.workflow }}
+            **Job:** ${{ github.job }}
+
+            [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.after }})
+            [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          color: 0xf44336
