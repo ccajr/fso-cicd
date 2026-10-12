@@ -20,6 +20,14 @@ app.use('/api/blogs', blogsRouter)
 app.use('/api/login', loginRouter)
 app.use('/api/users', usersRouter)
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK')
+})
+
+app.get('/version', (req, res) => {
+  res.send('1')
+})
+
 if (process.env.NODE_ENV === 'test') {
   const testingRouter = require('./controllers/testing')
   app.use('/api/testing', testingRouter)
@@ -33,10 +41,6 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'))
   })
 }
-
-app.get('/health', (req, res) => {
-  res.status(200).send('OK')
-})
 
 app.use(middleware.unknownEndpoint)
 app.use(middleware.errorHandler)
